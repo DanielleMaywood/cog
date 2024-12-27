@@ -9,10 +9,6 @@ import glexer
 import glexer/token
 import simplifile
 
-//cog:embed src/cog.gleam
-/// This is some documentation
-pub const input = ""
-
 pub type CogError {
   InvalidPathError(String)
   UnexpectedToken(token.Token)
