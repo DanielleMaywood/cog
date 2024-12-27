@@ -4,7 +4,7 @@
 [![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/cog/)
 
 ```sh
-gleam add --dev cog@1
+gleam add --dev cog@2
 ```
 
 ## Introduction

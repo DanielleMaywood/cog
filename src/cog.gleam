@@ -1,5 +1,7 @@
 import cog/glexer_printer
+import filepath
 import gleam/int
+import gleam/io
 import gleam/list
 import gleam/result
 import gleam/string
@@ -7,82 +9,213 @@ import glexer
 import glexer/token
 import simplifile
 
-pub fn main() {
-  // Get all source files
-  use source_files <- result.try(simplifile.get_files(in: "./src"))
-  use test_files <- result.try(simplifile.get_files(in: "./test"))
+//cog:embed src/cog.gleam
+/// This is some documentation
+pub const input = ""
 
-  let files = list.append(source_files, test_files)
-
-  // Filter them down to gleam source files
-  let gleam_files = list.filter(files, string.ends_with(_, ".gleam"))
-
-  // Attempt to run cog for each gleam source file
-  use _ <- result.try({
-    gleam_files
-    |> list.map(fn(file) {
-      use content <- result.try(simplifile.read(file))
-      use source <- result.try(run(on: content))
-
-      simplifile.write(to: file, contents: source)
-    })
-    |> result.all
-  })
-
-  Ok(Nil)
+pub type CogError {
+  InvalidPathError(String)
+  UnexpectedToken(token.Token)
+  FileError(simplifile.FileError)
 }
 
-pub fn run(on content: String) -> Result(String, simplifile.FileError) {
+pub fn main() {
+  let result = {
+    // Get project root
+    use root <- result.try(find_project_root())
+
+    // Get all source files
+    use source_files <- result.try({
+      simplifile.get_files(in: filepath.join(root, "src"))
+      |> result.map_error(FileError)
+    })
+
+    // Get all test files
+    use test_files <- result.try({
+      simplifile.get_files(in: filepath.join(root, "test"))
+      |> result.map_error(FileError)
+    })
+
+    let files = list.append(source_files, test_files)
+
+    // Filter them down to gleam source files
+    let gleam_files = list.filter(files, string.ends_with(_, ".gleam"))
+
+    // Attempt to run cog for each gleam source file
+    use _ <- result.try({
+      gleam_files
+      |> list.map(fn(file) {
+        use content <- result.try({
+          simplifile.read(file)
+          |> result.map_error(FileError)
+        })
+
+        use source <- result.try(run(on: content, in: root))
+
+        simplifile.write(to: file, contents: source)
+        |> result.map_error(FileError)
+      })
+      |> result.all
+    })
+
+    Ok(Nil)
+  }
+
+  case result {
+    Ok(Nil) -> Nil
+    Error(UnexpectedToken(token)) -> {
+      io.println_error("unexpected token: " <> string.inspect(token))
+    }
+    Error(InvalidPathError(path)) -> {
+      io.println_error("invalid path found: " <> path)
+    }
+    Error(FileError(error)) -> {
+      io.println_error("file error: " <> string.inspect(error))
+    }
+  }
+}
+
+pub fn run(on content: String, in dir: String) -> Result(String, CogError) {
   let tokens = glexer.new(content) |> glexer.lex
   let tokens = list.map(tokens, fn(token) { token.0 })
 
   // Perform code generation
-  use tokens <- result.try(perform_actions(tokens))
+  use tokens <- result.try(perform_actions(tokens, in: dir))
 
   Ok(glexer_printer.print(tokens))
 }
 
+fn find_project_root() -> Result(String, CogError) {
+  use cwd <- result.try({
+    simplifile.current_directory()
+    |> result.map_error(FileError)
+  })
+
+  do_find_project_root(cwd)
+}
+
+fn do_find_project_root(dir: String) -> Result(String, CogError) {
+  use is_file <- result.try({
+    filepath.join(dir, "gleam.toml")
+    |> simplifile.is_file
+    |> result.map_error(FileError)
+  })
+
+  case is_file {
+    True -> Ok(dir)
+    False -> do_find_project_root(filepath.directory_name(dir))
+  }
+}
+
 fn perform_actions(
   tokens: List(token.Token),
-) -> Result(List(token.Token), simplifile.FileError) {
-  do_perform_actions(tokens, [])
+  in dir: String,
+) -> Result(List(token.Token), CogError) {
+  do_perform_actions(tokens, in: dir, generated: [])
   |> result.map(list.reverse)
 }
 
 fn do_perform_actions(
   tokens: List(token.Token),
-  generated: List(token.Token),
-) -> Result(List(token.Token), simplifile.FileError) {
+  in dir: String,
+  generated acc: List(token.Token),
+) -> Result(List(token.Token), CogError) {
   case tokens {
-    [] -> Ok(generated)
-    [
-      token.CommentNormal("cog:embed " <> path) as t1,
-      token.Space(_) as t2,
-      token.Const as t3,
-      token.Space(_) as t4,
-      token.Name(_) as t5,
-      token.Space(_) as t6,
-      token.Equal as t7,
-      token.Space(_) as t8,
-      token.String(_),
-      ..tokens
-    ] -> {
-      use data <- result.try(simplifile.read(path))
-
-      let codepoints =
-        data
-        |> string.to_utf_codepoints
-        |> list.map(fn(codepoint) {
-          "\\u{" <> int.to_base16(string.utf_codepoint_to_int(codepoint)) <> "}"
+    [] -> Ok(acc)
+    [token.CommentNormal("cog:embed " <> path) as t1, ..tokens] -> {
+      let #(comments, tokens) =
+        list.split_while(tokens, fn(token) {
+          case token {
+            token.Space(_)
+            | token.CommentDoc(_)
+            | token.CommentNormal(_)
+            | token.CommentModule(_) -> True
+            _ -> False
+          }
         })
-        |> string.join(with: "")
 
-      let new =
-        [t1, t2, t3, t4, t5, t6, t7, t8, token.String(codepoints)]
-        |> list.reverse
+      case tokens {
+        [
+          token.Const as t2,
+          token.Space(_) as t3,
+          token.Name(_) as t4,
+          token.Space(_) as t5,
+          token.Equal as t6,
+          token.Space(_) as t7,
+          token.String(_),
+          ..tokens
+        ] -> {
+          use generated <- result.try({
+            cog_embed(
+              list.flatten([[t1], comments, [t2, t3, t4, t5, t6, t7]]),
+              path,
+              in: dir,
+            )
+          })
 
-      do_perform_actions(tokens, list.append(new, generated))
+          do_perform_actions(
+            tokens,
+            in: dir,
+            generated: list.append(generated, acc),
+          )
+        }
+        [
+          token.Pub as t2,
+          token.Space(_) as t3,
+          token.Const as t4,
+          token.Space(_) as t5,
+          token.Name(_) as t6,
+          token.Space(_) as t7,
+          token.Equal as t8,
+          token.Space(_) as t9,
+          token.String(_),
+          ..tokens
+        ] -> {
+          use generated <- result.try({
+            cog_embed(
+              list.flatten([[t1], comments, [t2, t3, t4, t5, t6, t7, t8, t9]]),
+              path,
+              in: dir,
+            )
+          })
+
+          do_perform_actions(
+            tokens,
+            in: dir,
+            generated: list.append(generated, acc),
+          )
+        }
+        [] -> Error(UnexpectedToken(token.EndOfFile))
+        [token, ..] -> Error(UnexpectedToken(token))
+      }
     }
-    [token, ..tokens] -> do_perform_actions(tokens, [token, ..generated])
+    [token, ..tokens] ->
+      do_perform_actions(tokens, in: dir, generated: [token, ..acc])
   }
+}
+
+fn cog_embed(
+  tokens: List(token.Token),
+  path: String,
+  in dir: String,
+) -> Result(List(token.Token), CogError) {
+  use path <- result.try({
+    filepath.expand(path)
+    |> result.map_error(fn(_) { InvalidPathError(path) })
+  })
+
+  use data <- result.try({
+    simplifile.read(filepath.join(dir, path))
+    |> result.map_error(FileError)
+  })
+
+  let codepoints =
+    data
+    |> string.to_utf_codepoints
+    |> list.map(fn(codepoint) {
+      "\\u{" <> int.to_base16(string.utf_codepoint_to_int(codepoint)) <> "}"
+    })
+    |> string.join(with: "")
+
+  Ok([token.String(codepoints), ..list.reverse(tokens)])
 }
