@@ -23,11 +23,7 @@ pub fn roundtrip_test() {
     let tokens = glexer.new(content) |> glexer.lex
     let tokens = list.map(tokens, fn(token) { token.0 })
 
-    let _ = simplifile.write(to: "./input", contents: content)
-
     let output = glexer_printer.print(tokens)
-
-    let _ = simplifile.write(to: "./output", contents: output)
 
     should.equal(content, output)
   })

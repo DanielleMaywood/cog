@@ -1,5 +1,7 @@
 name = "cog"
 version = "1.0.0"
+description = "A package for performing code generation actions."
+licences = ["MIT"]
 
 [dependencies]
 gleam_stdlib = ">= 0.34.0 and < 2.0.0"
