@@ -47,22 +47,22 @@ fn wibble() { todo }
 //cog:embed test/input0.txt
 /// This is a wibble
 /// This is a wobble
-pub const input0 = \"\\u{68}\\u{65}\\u{6C}\\u{6C}\\u{6F}\\u{2C}\\u{20}\\u{6A}\\u{6F}\\u{65}\\u{21}\\u{A}\"
+pub const input0 = \"hello, \\\"joe\\\"!\n\"
 
 //cog:embed test/input0.txt
 /// This is a wibble
 /// This is a wobble
-pub const input0: String = \"\\u{68}\\u{65}\\u{6C}\\u{6C}\\u{6F}\\u{2C}\\u{20}\\u{6A}\\u{6F}\\u{65}\\u{21}\\u{A}\"
+pub const input0: String = \"hello, \\\"joe\\\"!\n\"
 
 //cog:embed test/input0.txt
 /// This is a wibble
 /// This is a wobble
-const input0 = \"\\u{68}\\u{65}\\u{6C}\\u{6C}\\u{6F}\\u{2C}\\u{20}\\u{6A}\\u{6F}\\u{65}\\u{21}\\u{A}\"
+const input0 = \"hello, \\\"joe\\\"!\n\"
 
 //cog:embed test/input0.txt
 /// This is a wibble
 /// This is a wobble
-const input0: String = \"\\u{68}\\u{65}\\u{6C}\\u{6C}\\u{6F}\\u{2C}\\u{20}\\u{6A}\\u{6F}\\u{65}\\u{21}\\u{A}\"
+const input0: String = \"hello, \\\"joe\\\"!\n\"
 
 // normal comment
 fn wobble() { todo }
@@ -92,7 +92,7 @@ fn wobble() { todo }
 fn wibble() { todo }
 
 //cog:embed test/input1.txt
-const input1 = \"\\u{67}\\u{6F}\\u{6F}\\u{64}\\u{62}\\u{79}\\u{65}\\u{2C}\\u{20}\\u{6A}\\u{6F}\\u{65}\\u{21}\\u{A}\"
+const input1 = \"goodbye, joe!\\\\n\n\"
 
 // normal comment
 fn wobble() { todo }

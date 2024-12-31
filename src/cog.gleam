@@ -1,10 +1,12 @@
 import argv
 import cog/glexer_printer
 import filepath
+import gleam/bit_array
+import gleam/bool
 import gleam/dict.{type Dict}
-import gleam/int
 import gleam/io
 import gleam/list
+import gleam/pair
 import gleam/result
 import gleam/string
 import glexer
@@ -14,24 +16,25 @@ import simplifile
 
 pub type CogError {
   InvalidPathError(String)
-  UnexpectedToken(token.Token)
+  UnexpectedEndOfFile
+  UnexpectedToken(#(token.Token, glexer.Position))
   FileNotFound(String)
   FileError(simplifile.FileError)
+  MergeError
 }
 
-//cog:embed /not-found.toml
-pub const reason = "\u{6E}\u{61}\u{6D}\u{65}\u{20}\u{3D}\u{20}\u{22}\u{63}\u{6F}\u{67}\u{22}\u{A}\u{76}\u{65}\u{72}\u{73}\u{69}\u{6F}\u{6E}\u{20}\u{3D}\u{20}\u{22}\u{32}\u{2E}\u{30}\u{2E}\u{31}\u{22}\u{A}\u{64}\u{65}\u{73}\u{63}\u{72}\u{69}\u{70}\u{74}\u{69}\u{6F}\u{6E}\u{20}\u{3D}\u{20}\u{22}\u{41}\u{20}\u{70}\u{61}\u{63}\u{6B}\u{61}\u{67}\u{65}\u{20}\u{66}\u{6F}\u{72}\u{20}\u{70}\u{65}\u{72}\u{66}\u{6F}\u{72}\u{6D}\u{69}\u{6E}\u{67}\u{20}\u{63}\u{6F}\u{64}\u{65}\u{20}\u{67}\u{65}\u{6E}\u{65}\u{72}\u{61}\u{74}\u{69}\u{6F}\u{6E}\u{20}\u{61}\u{63}\u{74}\u{69}\u{6F}\u{6E}\u{73}\u{2E}\u{22}\u{A}\u{6C}\u{69}\u{63}\u{65}\u{6E}\u{63}\u{65}\u{73}\u{20}\u{3D}\u{20}\u{5B}\u{22}\u{4D}\u{49}\u{54}\u{22}\u{5D}\u{A}\u{72}\u{65}\u{70}\u{6F}\u{73}\u{69}\u{74}\u{6F}\u{72}\u{79}\u{20}\u{3D}\u{20}\u{7B}\u{20}\u{74}\u{79}\u{70}\u{65}\u{20}\u{3D}\u{20}\u{22}\u{67}\u{69}\u{74}\u{68}\u{75}\u{62}\u{22}\u{2C}\u{20}\u{75}\u{73}\u{65}\u{72}\u{20}\u{3D}\u{20}\u{22}\u{44}\u{61}\u{6E}\u{69}\u{65}\u{6C}\u{6C}\u{65}\u{4D}\u{61}\u{79}\u{77}\u{6F}\u{6F}\u{64}\u{22}\u{2C}\u{20}\u{72}\u{65}\u{70}\u{6F}\u{20}\u{3D}\u{20}\u{22}\u{63}\u{6F}\u{67}\u{22}\u{20}\u{7D}\u{A}\u{A}\u{A}\u{5B}\u{64}\u{65}\u{70}\u{65}\u{6E}\u{64}\u{65}\u{6E}\u{63}\u{69}\u{65}\u{73}\u{5D}\u{A}\u{67}\u{6C}\u{65}\u{61}\u{6D}\u{5F}\u{73}\u{74}\u{64}\u{6C}\u{69}\u{62}\u{20}\u{3D}\u{20}\u{22}\u{3E}\u{3D}\u{20}\u{30}\u{2E}\u{33}\u{34}\u{2E}\u{30}\u{20}\u{61}\u{6E}\u{64}\u{20}\u{3C}\u{20}\u{32}\u{2E}\u{30}\u{2E}\u{30}\u{22}\u{A}\u{73}\u{69}\u{6D}\u{70}\u{6C}\u{69}\u{66}\u{69}\u{6C}\u{65}\u{20}\u{3D}\u{20}\u{22}\u{3E}\u{3D}\u{20}\u{32}\u{2E}\u{32}\u{2E}\u{30}\u{20}\u{61}\u{6E}\u{64}\u{20}\u{3C}\u{20}\u{33}\u{2E}\u{30}\u{2E}\u{30}\u{22}\u{A}\u{67}\u{6C}\u{65}\u{78}\u{65}\u{72}\u{20}\u{3D}\u{20}\u{22}\u{3E}\u{3D}\u{20}\u{32}\u{2E}\u{30}\u{2E}\u{30}\u{20}\u{61}\u{6E}\u{64}\u{20}\u{3C}\u{20}\u{33}\u{2E}\u{30}\u{2E}\u{30}\u{22}\u{A}\u{66}\u{69}\u{6C}\u{65}\u{70}\u{61}\u{74}\u{68}\u{20}\u{3D}\u{20}\u{22}\u{3E}\u{3D}\u{20}\u{31}\u{2E}\u{31}\u{2E}\u{30}\u{20}\u{61}\u{6E}\u{64}\u{20}\u{3C}\u{20}\u{32}\u{2E}\u{30}\u{2E}\u{30}\u{22}\u{A}\u{61}\u{72}\u{67}\u{76}\u{20}\u{3D}\u{20}\u{22}\u{3E}\u{3D}\u{20}\u{31}\u{2E}\u{30}\u{2E}\u{32}\u{20}\u{61}\u{6E}\u{64}\u{20}\u{3C}\u{20}\u{32}\u{2E}\u{30}\u{2E}\u{30}\u{22}\u{A}\u{67}\u{6C}\u{69}\u{6E}\u{74}\u{20}\u{3D}\u{20}\u{22}\u{3E}\u{3D}\u{20}\u{31}\u{2E}\u{32}\u{2E}\u{30}\u{20}\u{61}\u{6E}\u{64}\u{20}\u{3C}\u{20}\u{32}\u{2E}\u{30}\u{2E}\u{30}\u{22}\u{A}\u{A}\u{5B}\u{64}\u{65}\u{76}\u{2D}\u{64}\u{65}\u{70}\u{65}\u{6E}\u{64}\u{65}\u{6E}\u{63}\u{69}\u{65}\u{73}\u{5D}\u{A}\u{67}\u{6C}\u{65}\u{65}\u{75}\u{6E}\u{69}\u{74}\u{20}\u{3D}\u{20}\u{22}\u{3E}\u{3D}\u{20}\u{31}\u{2E}\u{30}\u{2E}\u{30}\u{20}\u{61}\u{6E}\u{64}\u{20}\u{3C}\u{20}\u{32}\u{2E}\u{30}\u{2E}\u{30}\u{22}\u{A}"
-
-fn cog_error_to_string(error: CogError, file: String) -> String {
+pub fn describe_error(error: CogError, file: String) -> String {
   let reason = case error {
     InvalidPathError(path) -> "Given path not valid: `" <> path <> "`"
-    UnexpectedToken(token) ->
+    UnexpectedEndOfFile -> "Was expecting another token, found end of file"
+    UnexpectedToken(#(token, _)) ->
       "Did not expect to see token: `"
       <> glexer_printer.print_token(token)
       <> "`"
     FileNotFound(path) -> "File not found with path: `" <> path <> "`"
     FileError(error) ->
       "An unexpected file error occurred: " <> string.inspect(error)
+    MergeError -> "An unexpected error occurred whilst merging tokens"
   }
 
   "Encountered an error whilst processing file `" <> file <> "`:\n\t" <> reason
@@ -47,7 +50,14 @@ pub fn main() {
 
 fn main_command() -> glint.Command(Nil) {
   use <- glint.command_help("Runs cog on the current project")
-  use _, _, _ <- glint.command()
+  use verbose <- glint.flag({
+    glint.bool_flag("verbose")
+    |> glint.flag_default(False)
+    |> glint.flag_help("Set verbose logging")
+  })
+  use _, _, flags <- glint.command()
+
+  let assert Ok(verbose) = verbose(flags)
 
   let _ =
     in_project(fn(root, files) {
@@ -60,23 +70,30 @@ fn main_command() -> glint.Command(Nil) {
         }
 
         case result {
-          Ok(Nil) -> Nil
-          Error(error) -> io.println_error(cog_error_to_string(error, path))
+          Ok(Nil) ->
+            case verbose {
+              True ->
+                io.println("Successfully processed file: `" <> path <> "`")
+              False -> Nil
+            }
+          Error(error) -> io.println_error(describe_error(error, path))
         }
       })
     })
 
-  Nil
+  io.println("⚙️ Finished")
 }
 
 pub fn run(on content: String, in dir: String) -> Result(String, CogError) {
-  let tokens = glexer.new(content) |> glexer.lex
-  let tokens = list.map(tokens, fn(token) { token.0 })
+  let original = glexer.new(content) |> glexer.lex
 
   // Perform code generation
+  let tokens = drop_space_and_comments(original)
   use tokens <- result.try(perform_actions(tokens, in: dir))
 
-  Ok(glexer_printer.print(tokens))
+  use merged <- result.try(merge(original, tokens))
+
+  Ok(glexer_printer.print(list.map(merged, pair.first)))
 }
 
 pub fn is_up_to_date() -> Result(Bool, CogError) {
@@ -99,169 +116,126 @@ pub fn is_up_to_date() -> Result(Bool, CogError) {
 }
 
 fn perform_actions(
-  tokens: List(token.Token),
   in dir: String,
-) -> Result(List(token.Token), CogError) {
-  do_perform_actions(tokens, in: dir, generated: [])
+  with tokens: List(#(token.Token, glexer.Position)),
+) -> Result(List(#(token.Token, glexer.Position)), CogError) {
+  do_perform_actions(dir, tokens, [])
   |> result.map(list.reverse)
 }
 
 fn do_perform_actions(
-  tokens: List(token.Token),
-  in dir: String,
-  generated acc: List(token.Token),
-) -> Result(List(token.Token), CogError) {
+  dir: String,
+  tokens: List(#(token.Token, glexer.Position)),
+  acc: List(#(token.Token, glexer.Position)),
+) -> Result(List(#(token.Token, glexer.Position)), CogError) {
   case tokens {
     [] -> Ok(acc)
-    // Handle the cog:embed action
-    [token.CommentNormal("cog:embed " <> path) as t1, ..tokens] -> {
-      let #(comments, tokens) = skip_space_and_comments(tokens)
-
+    // Handle `//cog:embed` directive
+    [#(token.CommentNormal("cog:embed " <> path), _) as t1, ..tokens] ->
       case tokens {
+        [] -> Error(UnexpectedEndOfFile)
+
         // const <name> = "<string>"
         [
-          token.Const as t2,
-          token.Space(_) as t3,
-          token.Name(_) as t4,
-          token.Space(_) as t5,
-          token.Equal as t6,
-          token.Space(_) as t7,
-          token.String(_),
+          #(token.Const, _) as t2,
+          #(token.Name(_), _) as t3,
+          #(token.Equal, _) as t4,
+          #(token.String(_), pos),
           ..tokens
         ] -> {
-          use generated <- result.try({
-            list.flatten([[t1], comments, [t2, t3, t4, t5, t6, t7]])
-            |> cog_embed(path, in: dir)
-          })
+          use string <- result.try(cog_embed_string(file: path, in: dir))
 
-          do_perform_actions(tokens, dir, list.append(generated, acc))
+          [#(token.String(string), pos), t4, t3, t2, t1, ..acc]
+          |> do_perform_actions(dir, tokens, _)
         }
+
         // const <name>: String = "<string>"
         [
-          token.Const as t2,
-          token.Space(_) as t3,
-          token.Name(_) as t4,
-          token.Colon as t5,
-          token.Space(_) as t6,
-          token.UpperName("String") as t7,
-          token.Space(_) as t8,
-          token.Equal as t9,
-          token.Space(_) as t10,
-          token.String(_),
+          #(token.Const, _) as t2,
+          #(token.Name(_), _) as t3,
+          #(token.Colon, _) as t4,
+          #(token.UpperName("String"), _) as t5,
+          #(token.Equal, _) as t6,
+          #(token.String(_), pos),
           ..tokens
         ] -> {
-          use generated <- result.try({
-            list.flatten([[t1], comments, [t2, t3, t4, t5, t6, t7, t8, t9, t10]])
-            |> cog_embed(path, in: dir)
-          })
+          use string <- result.try(cog_embed_string(file: path, in: dir))
 
-          do_perform_actions(tokens, dir, list.append(generated, acc))
+          [#(token.String(string), pos), t6, t5, t4, t3, t2, t1, ..acc]
+          |> do_perform_actions(dir, tokens, _)
         }
+
         // pub const <name> = "<string>"
         [
-          token.Pub as t2,
-          token.Space(_) as t3,
-          token.Const as t4,
-          token.Space(_) as t5,
-          token.Name(_) as t6,
-          token.Space(_) as t7,
-          token.Equal as t8,
-          token.Space(_) as t9,
-          token.String(_),
+          #(token.Pub, _) as t2,
+          #(token.Const, _) as t3,
+          #(token.Name(_), _) as t4,
+          #(token.Equal, _) as t5,
+          #(token.String(_), pos),
           ..tokens
         ] -> {
-          use generated <- result.try({
-            list.flatten([[t1], comments, [t2, t3, t4, t5, t6, t7, t8, t9]])
-            |> cog_embed(path, in: dir)
-          })
+          use string <- result.try(cog_embed_string(file: path, in: dir))
 
-          do_perform_actions(tokens, dir, list.append(generated, acc))
+          [#(token.String(string), pos), t5, t4, t3, t2, t1, ..acc]
+          |> do_perform_actions(dir, tokens, _)
         }
+
         // pub const <name>: String = "<string>"
         [
-          token.Pub as t2,
-          token.Space(_) as t3,
-          token.Const as t4,
-          token.Space(_) as t5,
-          token.Name(_) as t6,
-          token.Colon as t7,
-          token.Space(_) as t8,
-          token.UpperName("String") as t9,
-          token.Space(_) as t10,
-          token.Equal as t11,
-          token.Space(_) as t12,
-          token.String(_),
+          #(token.Pub, _) as t2,
+          #(token.Const, _) as t3,
+          #(token.Name(_), _) as t4,
+          #(token.Colon, _) as t5,
+          #(token.UpperName("String"), _) as t6,
+          #(token.Equal, _) as t7,
+          #(token.String(_), pos),
           ..tokens
         ] -> {
-          use generated <- result.try({
-            list.flatten([
-              [t1],
-              comments,
-              [t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12],
-            ])
-            |> cog_embed(path, in: dir)
-          })
+          use string <- result.try(cog_embed_string(file: path, in: dir))
 
-          do_perform_actions(tokens, dir, list.append(generated, acc))
+          [#(token.String(string), pos), t7, t6, t5, t4, t3, t2, t1, ..acc]
+          |> do_perform_actions(dir, tokens, _)
         }
-        [] -> Error(UnexpectedToken(token.EndOfFile))
+
         [token, ..] -> Error(UnexpectedToken(token))
       }
-    }
-    [token, ..tokens] ->
-      do_perform_actions(tokens, in: dir, generated: [token, ..acc])
+    [token, ..tokens] -> do_perform_actions(dir, tokens, [token, ..acc])
   }
 }
 
-fn cog_embed(
-  tokens: List(token.Token),
-  path: String,
-  in dir: String,
-) -> Result(List(token.Token), CogError) {
+fn cog_embed(file path: String, in dir: String) -> Result(BitArray, CogError) {
   use path <- result.try({
     filepath.expand(path)
     |> result.map_error(fn(_) { InvalidPathError(path) })
   })
 
-  use data <- result.try({
-    let path = filepath.join(dir, path)
+  let path = filepath.join(dir, path)
 
-    simplifile.read(path)
-    |> result.map_error(fn(error) {
-      case error {
-        simplifile.Enoent -> FileNotFound(path)
-        _ -> FileError(error)
-      }
-    })
-  })
-
-  let codepoints =
-    data
-    |> string.to_utf_codepoints
-    |> list.map(fn(codepoint) {
-      "\\u{" <> int.to_base16(string.utf_codepoint_to_int(codepoint)) <> "}"
-    })
-    |> string.join(with: "")
-
-  Ok([token.String(codepoints), ..list.reverse(tokens)])
-}
-
-// ============= //
-// Lex Utilities //
-// ============= //
-
-fn skip_space_and_comments(
-  tokens: List(token.Token),
-) -> #(List(token.Token), List(token.Token)) {
-  list.split_while(tokens, fn(token) {
-    case token {
-      token.Space(_)
-      | token.CommentDoc(_)
-      | token.CommentNormal(_)
-      | token.CommentModule(_) -> True
-      _ -> False
+  simplifile.read_bits(path)
+  |> result.map_error(fn(error) {
+    case error {
+      simplifile.Enoent -> FileNotFound(path)
+      _ -> FileError(error)
     }
   })
+}
+
+fn cog_embed_string(
+  file path: String,
+  in dir: String,
+) -> Result(String, CogError) {
+  use data <- result.try(cog_embed(path, dir))
+  use data <- result.try({
+    bit_array.to_string(data)
+    |> result.replace_error(FileError(simplifile.NotUtf8))
+  })
+
+  let encoded =
+    data
+    |> string.replace("\\", "\\\\")
+    |> string.replace("\"", "\\\"")
+
+  Ok(encoded)
 }
 
 // ============== //
@@ -289,22 +263,30 @@ fn in_project(
 }
 
 fn find_project_files(in root: String) -> Result(List(String), CogError) {
-  // Get all source files
-  use source_files <- result.try({
-    simplifile.get_files(in: filepath.join(root, "src"))
-    |> result.map_error(FileError)
-  })
-
-  // Get all test files
-  use test_files <- result.try({
-    simplifile.get_files(in: filepath.join(root, "test"))
-    |> result.map_error(FileError)
-  })
+  use source_files <- result.try(find_project_files_at(root, at: "src"))
+  use test_files <- result.try(find_project_files_at(root, at: "test"))
 
   Ok({
     list.append(source_files, test_files)
     |> list.filter(string.ends_with(_, ".gleam"))
   })
+}
+
+fn find_project_files_at(
+  in root: String,
+  at path: String,
+) -> Result(List(String), CogError) {
+  let path = filepath.join(root, path)
+
+  use is_directory <- result.try({
+    simplifile.is_directory(path)
+    |> result.map_error(FileError)
+  })
+
+  use <- bool.guard(when: !is_directory, return: Ok([]))
+
+  simplifile.get_files(in: path)
+  |> result.map_error(FileError)
 }
 
 fn find_project_root() -> Result(String, CogError) {
@@ -326,5 +308,50 @@ fn do_find_project_root(dir: String) -> Result(String, CogError) {
   case is_file {
     True -> Ok(dir)
     False -> do_find_project_root(filepath.directory_name(dir))
+  }
+}
+
+//============================//
+//         Utilities          //
+//============================//
+
+fn drop_space_and_comments(tokens: List(#(token.Token, glexer.Position))) {
+  list.filter(tokens, fn(token) {
+    case token.0 {
+      // We want to keep any "//cog:" comments
+      token.CommentNormal("cog:" <> _) -> True
+      token.Space(_)
+      | token.CommentNormal(_)
+      | token.CommentModule(_)
+      | token.CommentDoc(_) -> False
+      _ -> True
+    }
+  })
+}
+
+fn merge(
+  original original: List(#(token.Token, glexer.Position)),
+  updated updated: List(#(token.Token, glexer.Position)),
+) -> Result(List(#(token.Token, glexer.Position)), CogError) {
+  do_merge(original, updated, [])
+  |> result.map(list.reverse)
+}
+
+fn do_merge(
+  original: List(#(token.Token, glexer.Position)),
+  updated: List(#(token.Token, glexer.Position)),
+  acc: List(#(token.Token, glexer.Position)),
+) -> Result(List(#(token.Token, glexer.Position)), CogError) {
+  case original, updated {
+    [], [] -> Ok(acc)
+    // If the position matches, choose the new token
+    [#(_, x), ..xs], [#(_, y) as token, ..ys] if x == y ->
+      do_merge(xs, ys, [token, ..acc])
+    // If the position doesn't match, choose from the original
+    [#(_, x) as token, ..xs], [#(_, y), ..] if x != y ->
+      do_merge(xs, updated, [token, ..acc])
+    // If the original still has data use that
+    [token, ..xs], [] -> do_merge(xs, [], [token, ..acc])
+    _, _ -> Error(MergeError)
   }
 }
