@@ -1,5 +1,6 @@
 import cog/glexer_printer
 import filepath
+import gleam/bool
 import gleam/int
 import gleam/io
 import gleam/list
@@ -21,16 +22,8 @@ pub fn main() {
     use root <- result.try(find_project_root())
 
     // Get all source files
-    use source_files <- result.try({
-      simplifile.get_files(in: filepath.join(root, "src"))
-      |> result.map_error(FileError)
-    })
-
-    // Get all test files
-    use test_files <- result.try({
-      simplifile.get_files(in: filepath.join(root, "test"))
-      |> result.map_error(FileError)
-    })
+    use source_files <- result.try(collect_project_files(in: root, at: "src"))
+    use test_files <- result.try(collect_project_files(in: root, at: "test"))
 
     let files = list.append(source_files, test_files)
 
@@ -79,6 +72,23 @@ pub fn run(on content: String, in dir: String) -> Result(String, CogError) {
   use tokens <- result.try(perform_actions(tokens, in: dir))
 
   Ok(glexer_printer.print(tokens))
+}
+
+fn collect_project_files(
+  in root: String,
+  at path: String,
+) -> Result(List(String), CogError) {
+  let path = filepath.join(root, path)
+
+  use is_directory <- result.try({
+    simplifile.is_directory(path)
+    |> result.map_error(FileError)
+  })
+
+  use <- bool.guard(when: !is_directory, return: Ok([]))
+
+  simplifile.get_files(in: path)
+  |> result.map_error(FileError)
 }
 
 fn find_project_root() -> Result(String, CogError) {
