@@ -113,19 +113,12 @@ fn do_perform_actions(
 ) -> Result(List(token.Token), CogError) {
   case tokens {
     [] -> Ok(acc)
+    // Handle the cog:embed action
     [token.CommentNormal("cog:embed " <> path) as t1, ..tokens] -> {
-      let #(comments, tokens) =
-        list.split_while(tokens, fn(token) {
-          case token {
-            token.Space(_)
-            | token.CommentDoc(_)
-            | token.CommentNormal(_)
-            | token.CommentModule(_) -> True
-            _ -> False
-          }
-        })
+      let #(comments, tokens) = skip_space_and_comments(tokens)
 
       case tokens {
+        // const <name> = "<string>"
         [
           token.Const as t2,
           token.Space(_) as t3,
@@ -137,19 +130,34 @@ fn do_perform_actions(
           ..tokens
         ] -> {
           use generated <- result.try({
-            cog_embed(
-              list.flatten([[t1], comments, [t2, t3, t4, t5, t6, t7]]),
-              path,
-              in: dir,
-            )
+            list.flatten([[t1], comments, [t2, t3, t4, t5, t6, t7]])
+            |> cog_embed(path, in: dir)
           })
 
-          do_perform_actions(
-            tokens,
-            in: dir,
-            generated: list.append(generated, acc),
-          )
+          do_perform_actions(tokens, dir, list.append(generated, acc))
         }
+        // const <name>: String = "<string>"
+        [
+          token.Const as t2,
+          token.Space(_) as t3,
+          token.Name(_) as t4,
+          token.Colon as t5,
+          token.Space(_) as t6,
+          token.UpperName("String") as t7,
+          token.Space(_) as t8,
+          token.Equal as t9,
+          token.Space(_) as t10,
+          token.String(_),
+          ..tokens
+        ] -> {
+          use generated <- result.try({
+            list.flatten([[t1], comments, [t2, t3, t4, t5, t6, t7, t8, t9, t10]])
+            |> cog_embed(path, in: dir)
+          })
+
+          do_perform_actions(tokens, dir, list.append(generated, acc))
+        }
+        // pub const <name> = "<string>"
         [
           token.Pub as t2,
           token.Space(_) as t3,
@@ -163,18 +171,38 @@ fn do_perform_actions(
           ..tokens
         ] -> {
           use generated <- result.try({
-            cog_embed(
-              list.flatten([[t1], comments, [t2, t3, t4, t5, t6, t7, t8, t9]]),
-              path,
-              in: dir,
-            )
+            list.flatten([[t1], comments, [t2, t3, t4, t5, t6, t7, t8, t9]])
+            |> cog_embed(path, in: dir)
           })
 
-          do_perform_actions(
-            tokens,
-            in: dir,
-            generated: list.append(generated, acc),
-          )
+          do_perform_actions(tokens, dir, list.append(generated, acc))
+        }
+        // pub const <name>: String = "<string>"
+        [
+          token.Pub as t2,
+          token.Space(_) as t3,
+          token.Const as t4,
+          token.Space(_) as t5,
+          token.Name(_) as t6,
+          token.Colon as t7,
+          token.Space(_) as t8,
+          token.UpperName("String") as t9,
+          token.Space(_) as t10,
+          token.Equal as t11,
+          token.Space(_) as t12,
+          token.String(_),
+          ..tokens
+        ] -> {
+          use generated <- result.try({
+            list.flatten([
+              [t1],
+              comments,
+              [t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12],
+            ])
+            |> cog_embed(path, in: dir)
+          })
+
+          do_perform_actions(tokens, dir, list.append(generated, acc))
         }
         [] -> Error(UnexpectedToken(token.EndOfFile))
         [token, ..] -> Error(UnexpectedToken(token))
@@ -218,9 +246,27 @@ fn cog_embed(
   Ok([token.String(codepoints), ..list.reverse(tokens)])
 }
 
-// ========= //
-// Utilities //
-// ========= //
+// ============= //
+// Lex Utilities //
+// ============= //
+
+fn skip_space_and_comments(
+  tokens: List(token.Token),
+) -> #(List(token.Token), List(token.Token)) {
+  list.split_while(tokens, fn(token) {
+    case token {
+      token.Space(_)
+      | token.CommentDoc(_)
+      | token.CommentNormal(_)
+      | token.CommentModule(_) -> True
+      _ -> False
+    }
+  })
+}
+
+// ============== //
+// File Utilities //
+// ============== //
 
 fn in_project(
   action: fn(String, Dict(String, String)) -> a,
