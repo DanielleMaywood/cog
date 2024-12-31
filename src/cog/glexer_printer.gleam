@@ -1,5 +1,6 @@
 import glexer/token
 
+@internal
 pub fn print(tokens: List(token.Token)) -> String {
   do_print(tokens, "")
 }
@@ -11,7 +12,8 @@ fn do_print(tokens: List(token.Token), source: String) -> String {
   }
 }
 
-fn print_token(token: token.Token) -> String {
+@internal
+pub fn print_token(token: token.Token) -> String {
   case token {
     token.AmperAmper -> "&&"
     token.As -> "as"

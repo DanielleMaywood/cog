@@ -1,5 +1,7 @@
+import argv
 import cog/glexer_printer
 import filepath
+import gleam/dict.{type Dict}
 import gleam/int
 import gleam/io
 import gleam/list
@@ -7,68 +9,64 @@ import gleam/result
 import gleam/string
 import glexer
 import glexer/token
+import glint
 import simplifile
 
 pub type CogError {
   InvalidPathError(String)
   UnexpectedToken(token.Token)
+  FileNotFound(String)
   FileError(simplifile.FileError)
 }
 
+//cog:embed /not-found.toml
+pub const reason = "\u{6E}\u{61}\u{6D}\u{65}\u{20}\u{3D}\u{20}\u{22}\u{63}\u{6F}\u{67}\u{22}\u{A}\u{76}\u{65}\u{72}\u{73}\u{69}\u{6F}\u{6E}\u{20}\u{3D}\u{20}\u{22}\u{32}\u{2E}\u{30}\u{2E}\u{31}\u{22}\u{A}\u{64}\u{65}\u{73}\u{63}\u{72}\u{69}\u{70}\u{74}\u{69}\u{6F}\u{6E}\u{20}\u{3D}\u{20}\u{22}\u{41}\u{20}\u{70}\u{61}\u{63}\u{6B}\u{61}\u{67}\u{65}\u{20}\u{66}\u{6F}\u{72}\u{20}\u{70}\u{65}\u{72}\u{66}\u{6F}\u{72}\u{6D}\u{69}\u{6E}\u{67}\u{20}\u{63}\u{6F}\u{64}\u{65}\u{20}\u{67}\u{65}\u{6E}\u{65}\u{72}\u{61}\u{74}\u{69}\u{6F}\u{6E}\u{20}\u{61}\u{63}\u{74}\u{69}\u{6F}\u{6E}\u{73}\u{2E}\u{22}\u{A}\u{6C}\u{69}\u{63}\u{65}\u{6E}\u{63}\u{65}\u{73}\u{20}\u{3D}\u{20}\u{5B}\u{22}\u{4D}\u{49}\u{54}\u{22}\u{5D}\u{A}\u{72}\u{65}\u{70}\u{6F}\u{73}\u{69}\u{74}\u{6F}\u{72}\u{79}\u{20}\u{3D}\u{20}\u{7B}\u{20}\u{74}\u{79}\u{70}\u{65}\u{20}\u{3D}\u{20}\u{22}\u{67}\u{69}\u{74}\u{68}\u{75}\u{62}\u{22}\u{2C}\u{20}\u{75}\u{73}\u{65}\u{72}\u{20}\u{3D}\u{20}\u{22}\u{44}\u{61}\u{6E}\u{69}\u{65}\u{6C}\u{6C}\u{65}\u{4D}\u{61}\u{79}\u{77}\u{6F}\u{6F}\u{64}\u{22}\u{2C}\u{20}\u{72}\u{65}\u{70}\u{6F}\u{20}\u{3D}\u{20}\u{22}\u{63}\u{6F}\u{67}\u{22}\u{20}\u{7D}\u{A}\u{A}\u{A}\u{5B}\u{64}\u{65}\u{70}\u{65}\u{6E}\u{64}\u{65}\u{6E}\u{63}\u{69}\u{65}\u{73}\u{5D}\u{A}\u{67}\u{6C}\u{65}\u{61}\u{6D}\u{5F}\u{73}\u{74}\u{64}\u{6C}\u{69}\u{62}\u{20}\u{3D}\u{20}\u{22}\u{3E}\u{3D}\u{20}\u{30}\u{2E}\u{33}\u{34}\u{2E}\u{30}\u{20}\u{61}\u{6E}\u{64}\u{20}\u{3C}\u{20}\u{32}\u{2E}\u{30}\u{2E}\u{30}\u{22}\u{A}\u{73}\u{69}\u{6D}\u{70}\u{6C}\u{69}\u{66}\u{69}\u{6C}\u{65}\u{20}\u{3D}\u{20}\u{22}\u{3E}\u{3D}\u{20}\u{32}\u{2E}\u{32}\u{2E}\u{30}\u{20}\u{61}\u{6E}\u{64}\u{20}\u{3C}\u{20}\u{33}\u{2E}\u{30}\u{2E}\u{30}\u{22}\u{A}\u{67}\u{6C}\u{65}\u{78}\u{65}\u{72}\u{20}\u{3D}\u{20}\u{22}\u{3E}\u{3D}\u{20}\u{32}\u{2E}\u{30}\u{2E}\u{30}\u{20}\u{61}\u{6E}\u{64}\u{20}\u{3C}\u{20}\u{33}\u{2E}\u{30}\u{2E}\u{30}\u{22}\u{A}\u{66}\u{69}\u{6C}\u{65}\u{70}\u{61}\u{74}\u{68}\u{20}\u{3D}\u{20}\u{22}\u{3E}\u{3D}\u{20}\u{31}\u{2E}\u{31}\u{2E}\u{30}\u{20}\u{61}\u{6E}\u{64}\u{20}\u{3C}\u{20}\u{32}\u{2E}\u{30}\u{2E}\u{30}\u{22}\u{A}\u{61}\u{72}\u{67}\u{76}\u{20}\u{3D}\u{20}\u{22}\u{3E}\u{3D}\u{20}\u{31}\u{2E}\u{30}\u{2E}\u{32}\u{20}\u{61}\u{6E}\u{64}\u{20}\u{3C}\u{20}\u{32}\u{2E}\u{30}\u{2E}\u{30}\u{22}\u{A}\u{67}\u{6C}\u{69}\u{6E}\u{74}\u{20}\u{3D}\u{20}\u{22}\u{3E}\u{3D}\u{20}\u{31}\u{2E}\u{32}\u{2E}\u{30}\u{20}\u{61}\u{6E}\u{64}\u{20}\u{3C}\u{20}\u{32}\u{2E}\u{30}\u{2E}\u{30}\u{22}\u{A}\u{A}\u{5B}\u{64}\u{65}\u{76}\u{2D}\u{64}\u{65}\u{70}\u{65}\u{6E}\u{64}\u{65}\u{6E}\u{63}\u{69}\u{65}\u{73}\u{5D}\u{A}\u{67}\u{6C}\u{65}\u{65}\u{75}\u{6E}\u{69}\u{74}\u{20}\u{3D}\u{20}\u{22}\u{3E}\u{3D}\u{20}\u{31}\u{2E}\u{30}\u{2E}\u{30}\u{20}\u{61}\u{6E}\u{64}\u{20}\u{3C}\u{20}\u{32}\u{2E}\u{30}\u{2E}\u{30}\u{22}\u{A}"
+
+fn cog_error_to_string(error: CogError, file: String) -> String {
+  let reason = case error {
+    InvalidPathError(path) -> "Given path not valid: `" <> path <> "`"
+    UnexpectedToken(token) ->
+      "Did not expect to see token: `"
+      <> glexer_printer.print_token(token)
+      <> "`"
+    FileNotFound(path) -> "File not found with path: `" <> path <> "`"
+    FileError(error) ->
+      "An unexpected file error occurred: " <> string.inspect(error)
+  }
+
+  "Encountered an error whilst processing file `" <> file <> "`:\n\t" <> reason
+}
+
 pub fn main() {
-  let result = {
-    // Get project root
-    use root <- result.try(find_project_root())
+  glint.new()
+  |> glint.with_name("cog")
+  |> glint.pretty_help(glint.default_pretty_help())
+  |> glint.add(at: [], do: main_command())
+  |> glint.run(argv.load().arguments)
+}
 
-    // Get all source files
-    use source_files <- result.try({
-      simplifile.get_files(in: filepath.join(root, "src"))
-      |> result.map_error(FileError)
-    })
+fn main_command() -> glint.Command(Nil) {
+  use <- glint.command_help("Runs cog on the current project")
+  use _, _, _ <- glint.command()
 
-    // Get all test files
-    use test_files <- result.try({
-      simplifile.get_files(in: filepath.join(root, "test"))
-      |> result.map_error(FileError)
-    })
+  let _ =
+    in_project(fn(root, files) {
+      dict.each(files, fn(path, content) {
+        let result = {
+          use source <- result.try(run(on: content, in: root))
 
-    let files = list.append(source_files, test_files)
-
-    // Filter them down to gleam source files
-    let gleam_files = list.filter(files, string.ends_with(_, ".gleam"))
-
-    // Attempt to run cog for each gleam source file
-    use _ <- result.try({
-      gleam_files
-      |> list.map(fn(file) {
-        use content <- result.try({
-          simplifile.read(file)
+          simplifile.write(to: path, contents: source)
           |> result.map_error(FileError)
-        })
+        }
 
-        use source <- result.try(run(on: content, in: root))
-
-        simplifile.write(to: file, contents: source)
-        |> result.map_error(FileError)
+        case result {
+          Ok(Nil) -> Nil
+          Error(error) -> io.println_error(cog_error_to_string(error, path))
+        }
       })
-      |> result.all
     })
 
-    Ok(Nil)
-  }
-
-  case result {
-    Ok(Nil) -> Nil
-    Error(UnexpectedToken(token)) -> {
-      io.println_error("unexpected token: " <> string.inspect(token))
-    }
-    Error(InvalidPathError(path)) -> {
-      io.println_error("invalid path found: " <> path)
-    }
-    Error(FileError(error)) -> {
-      io.println_error("file error: " <> string.inspect(error))
-    }
-  }
+  Nil
 }
 
 pub fn run(on content: String, in dir: String) -> Result(String, CogError) {
@@ -81,26 +79,23 @@ pub fn run(on content: String, in dir: String) -> Result(String, CogError) {
   Ok(glexer_printer.print(tokens))
 }
 
-fn find_project_root() -> Result(String, CogError) {
-  use cwd <- result.try({
-    simplifile.current_directory()
-    |> result.map_error(FileError)
+pub fn is_up_to_date() -> Result(Bool, CogError) {
+  result.flatten({
+    use root, files <- in_project()
+
+    use matches <- result.try({
+      dict.to_list(files)
+      |> list.try_map(fn(file) {
+        let #(_name, content) = file
+
+        use output <- result.try(run(on: content, in: root))
+
+        Ok(output == content)
+      })
+    })
+
+    Ok(matches |> list.all(fn(match) { match == True }))
   })
-
-  do_find_project_root(cwd)
-}
-
-fn do_find_project_root(dir: String) -> Result(String, CogError) {
-  use is_file <- result.try({
-    filepath.join(dir, "gleam.toml")
-    |> simplifile.is_file
-    |> result.map_error(FileError)
-  })
-
-  case is_file {
-    True -> Ok(dir)
-    False -> do_find_project_root(filepath.directory_name(dir))
-  }
 }
 
 fn perform_actions(
@@ -201,8 +196,15 @@ fn cog_embed(
   })
 
   use data <- result.try({
-    simplifile.read(filepath.join(dir, path))
-    |> result.map_error(FileError)
+    let path = filepath.join(dir, path)
+
+    simplifile.read(path)
+    |> result.map_error(fn(error) {
+      case error {
+        simplifile.Enoent -> FileNotFound(path)
+        _ -> FileError(error)
+      }
+    })
   })
 
   let codepoints =
@@ -214,4 +216,69 @@ fn cog_embed(
     |> string.join(with: "")
 
   Ok([token.String(codepoints), ..list.reverse(tokens)])
+}
+
+// ========= //
+// Utilities //
+// ========= //
+
+fn in_project(
+  action: fn(String, Dict(String, String)) -> a,
+) -> Result(a, CogError) {
+  use root <- result.try(find_project_root())
+  use files <- result.try(find_project_files(in: root))
+
+  use files <- result.try(
+    list.try_map(files, fn(file) {
+      use content <- result.try({
+        simplifile.read(file)
+        |> result.map_error(FileError)
+      })
+
+      Ok(#(file, content))
+    }),
+  )
+
+  Ok(action(root, files |> dict.from_list))
+}
+
+fn find_project_files(in root: String) -> Result(List(String), CogError) {
+  // Get all source files
+  use source_files <- result.try({
+    simplifile.get_files(in: filepath.join(root, "src"))
+    |> result.map_error(FileError)
+  })
+
+  // Get all test files
+  use test_files <- result.try({
+    simplifile.get_files(in: filepath.join(root, "test"))
+    |> result.map_error(FileError)
+  })
+
+  Ok({
+    list.append(source_files, test_files)
+    |> list.filter(string.ends_with(_, ".gleam"))
+  })
+}
+
+fn find_project_root() -> Result(String, CogError) {
+  use cwd <- result.try({
+    simplifile.current_directory()
+    |> result.map_error(FileError)
+  })
+
+  do_find_project_root(cwd)
+}
+
+fn do_find_project_root(dir: String) -> Result(String, CogError) {
+  use is_file <- result.try({
+    filepath.join(dir, "gleam.toml")
+    |> simplifile.is_file
+    |> result.map_error(FileError)
+  })
+
+  case is_file {
+    True -> Ok(dir)
+    False -> do_find_project_root(filepath.directory_name(dir))
+  }
 }
