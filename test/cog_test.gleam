@@ -6,6 +6,10 @@ pub fn main() {
   gleeunit.main()
 }
 
+pub fn cog_test() {
+  should.equal(cog.is_up_to_date(), Ok(True))
+}
+
 pub fn simple_embed_test() {
   let source =
     "

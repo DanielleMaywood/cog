@@ -14,6 +14,14 @@ import glexer/token
 import glint
 import simplifile
 
+pub fn main() {
+  glint.new()
+  |> glint.with_name("cog")
+  |> glint.pretty_help(glint.default_pretty_help())
+  |> glint.add(at: [], do: main_command())
+  |> glint.run(argv.load().arguments)
+}
+
 pub type CogError {
   InvalidPathError(String)
   UnexpectedEndOfFile
@@ -40,12 +48,34 @@ pub fn describe_error(error: CogError, file: String) -> String {
   "Encountered an error whilst processing file `" <> file <> "`:\n\t" <> reason
 }
 
-pub fn main() {
-  glint.new()
-  |> glint.with_name("cog")
-  |> glint.pretty_help(glint.default_pretty_help())
-  |> glint.add(at: [], do: main_command())
-  |> glint.run(argv.load().arguments)
+pub fn run(on content: String, in dir: String) -> Result(String, CogError) {
+  let original = glexer.new(content) |> glexer.lex
+
+  let tokens = drop_space_and_comments(original)
+  use tokens <- result.try(perform_actions(tokens, in: dir))
+
+  use merged <- result.try(merge(original, tokens))
+
+  Ok(glexer_printer.print(list.map(merged, pair.first)))
+}
+
+pub fn is_up_to_date() -> Result(Bool, CogError) {
+  result.flatten({
+    use root, files <- in_project()
+
+    use matches <- result.try({
+      dict.to_list(files)
+      |> list.try_map(fn(file) {
+        let #(_name, content) = file
+
+        use output <- result.try(run(on: content, in: root))
+
+        Ok(output == content)
+      })
+    })
+
+    Ok(matches |> list.all(fn(match) { match == True }))
+  })
 }
 
 fn main_command() -> glint.Command(Nil) {
@@ -82,37 +112,6 @@ fn main_command() -> glint.Command(Nil) {
     })
 
   io.println("⚙️ Finished")
-}
-
-pub fn run(on content: String, in dir: String) -> Result(String, CogError) {
-  let original = glexer.new(content) |> glexer.lex
-
-  // Perform code generation
-  let tokens = drop_space_and_comments(original)
-  use tokens <- result.try(perform_actions(tokens, in: dir))
-
-  use merged <- result.try(merge(original, tokens))
-
-  Ok(glexer_printer.print(list.map(merged, pair.first)))
-}
-
-pub fn is_up_to_date() -> Result(Bool, CogError) {
-  result.flatten({
-    use root, files <- in_project()
-
-    use matches <- result.try({
-      dict.to_list(files)
-      |> list.try_map(fn(file) {
-        let #(_name, content) = file
-
-        use output <- result.try(run(on: content, in: root))
-
-        Ok(output == content)
-      })
-    })
-
-    Ok(matches |> list.all(fn(match) { match == True }))
-  })
 }
 
 fn perform_actions(
@@ -238,9 +237,9 @@ fn cog_embed_string(
   Ok(encoded)
 }
 
-// ============== //
-// File Utilities //
-// ============== //
+//============================//
+//       File Utilities       //
+//============================//
 
 fn in_project(
   action: fn(String, Dict(String, String)) -> a,
