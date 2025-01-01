@@ -1,12 +1,10 @@
 import argv
-import cog/glexer_printer
 import filepath
 import gleam/bit_array
 import gleam/bool
 import gleam/dict.{type Dict}
 import gleam/io
 import gleam/list
-import gleam/pair
 import gleam/result
 import gleam/string
 import glexer
@@ -37,7 +35,7 @@ pub fn describe_error(error: CogError, file: String) -> String {
     UnexpectedEndOfFile -> "Was expecting another token, found end of file"
     UnexpectedToken(#(token, _)) ->
       "Did not expect to see token: `"
-      <> glexer_printer.print_token(token)
+      <> glexer.to_source([#(token, glexer.Position(0))])
       <> "`"
     FileNotFound(path) -> "File not found with path: `" <> path <> "`"
     FileError(error) ->
@@ -56,7 +54,7 @@ pub fn run(on content: String, in dir: String) -> Result(String, CogError) {
 
   use merged <- result.try(merge(original, tokens))
 
-  Ok(glexer_printer.print(list.map(merged, pair.first)))
+  Ok(glexer.to_source(merged))
 }
 
 pub fn is_up_to_date() -> Result(Bool, CogError) {
