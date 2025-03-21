@@ -41,8 +41,14 @@ pub fn main() {
 
         use source <- result.try(run(on: content, in: root))
 
-        simplifile.write(to: file, contents: source)
-        |> result.map_error(FileError)
+        // Only write to the file if there are changes
+        case source != content {
+          True ->
+            simplifile.write(to: file, contents: source)
+            |> result.map_error(FileError)
+
+          False -> Ok(Nil)
+        }
       })
       |> result.all
     })
